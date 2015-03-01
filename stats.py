@@ -4,53 +4,106 @@ import os
 import datetime
 
 import requests
+import pytz
 
-def from_utc(utcTime,fmt="%Y-%m-%dT%H:%M:%SZ"):
-    return datetime.datetime.strptime(utcTime, fmt)
+pacific = pytz.timezone('US/Eastern')
 
-def hoursWorked(stateChanges):  # TODO: limit this to 9am-6pm M-F
-    duration = datetime.timedelta(0)
-    timeOfLastStart = None
-    for dt, newState in stateChanges:
-        if newState == 'started':
-            timeOfLastStart = dt
-        elif timeOfLastStart is not None:
-            duration += (dt - timeOfLastStart)
-            timeOfLastStart = None
-    return duration.total_seconds() / (60 * 60)
+class Clocker:
+    '''
+    Count the hours
+    '''
 
-class Client:
+    @staticmethod
+    def isDuringWorkDay(time):
+        '''
+        Crude guess at whether a given time was during work hours
+        '''
+        local = time.astimezone(pacific)
+        weekday = local.weekday()
+        if local.isoweekday() >= 6: # sat or sunday
+            return False
+        return local.time().hour >= 9 and local.time().hour <= 18
+
+    @staticmethod
+    def workTimeBetween(start, end):
+        '''
+        How many normal work hours (M-F, 9-6) are between the start and end time
+        '''
+        duration = datetime.timedelta(0)
+        resolution = datetime.timedelta(minutes=10)
+        while start < end:
+            if Clocker.isDuringWorkDay(start):
+                duration += resolution
+            start += resolution
+        return duration
+
+    @staticmethod
+    def hoursWorked(history):
+        '''
+        How many hours were spent on a story, given it's history of state changes
+        *** This is often a gross over-estimate.  But what else can we do?  ***
+        '''
+        duration = datetime.timedelta(0)
+        timeOfLastStart = None
+        for newTime, newState in history:
+            if newState == 'started':
+                timeOfLastStart = newTime
+            elif timeOfLastStart is not None:
+                duration += Clocker.workTimeBetween(timeOfLastStart, newTime)
+                timeOfLastStart = None
+        return duration.total_seconds() / (60 * 60)
+
+
+class TrackerClient:
+    '''
+    An API client for Pivotal Tracker
+    '''
+
     def __init__(self, apiToken):
         self.session = requests.Session()
         self.session.headers.update({"X-TrackerToken": apiToken})
         self.baseUrl = "https://www.pivotaltracker.com/services/v5"
 
-    def getPointedFeatures(self, projectId):
-        url = self.baseUrl + "/projects/%d/stories" % projectId
-        query = { "filter": "state:accepted type:Feature includedone:true" }
-        features = self.session.get(url, params=query).json()
+    def _getJSON(self, route, queryParams=None):
+        return self.session.get(self.baseUrl + route, params=queryParams).json()
+
+    def getDoneFeatures(self, projectId):
+        '''
+        Return all completed features and their estimates for a project
+        '''
+        features = self._getJSON(
+                "/projects/%d/stories" % projectId,
+                { "filter": "state:accepted type:Feature includedone:true" })
         return [ (f['id'], f['estimate']) for f in features ]
 
-    def getStateChanges(self, projectId, storyId):
-        url = self.baseUrl + "/projects/%d/stories/%d/activity" % (projectId, storyId)
-        activity = self.session.get(url).json()
+    def getHistory(self, projectId, storyId):
+        '''
+        Return a condensed history of a story as (date, state) pairs
+        where state is { started, finished, delivered, accepted }
+        '''
+        activity = self._getJSON("/projects/%d/stories/%d/activity" % (projectId, storyId))
         changes = [
             (a['occurred_at'], c['new_values']['current_state'])
                 for a in activity
                 for c in a['changes']
                 if ('new_values' in c) and ('current_state' in c['new_values'])
             ]
-        return sorted([ (from_utc(date), state) for date,state in changes ])
+        return sorted([ (TrackerClient._parse_timestamp(date), state) for date,state in changes ])
+
+    @staticmethod
+    def _parse_timestamp(utcTime, fmt="%Y-%m-%dT%H:%M:%SZ"):
+        return pytz.utc.localize(datetime.datetime.strptime(utcTime, fmt))
+
 
 if __name__ == "__main__":
-    apiToken = os.environ['TOKEN']
+    apiToken = os.environ['TRACKER_API_TOKEN']
     projectId = int(os.environ['PROJECT_ID'])
 
-    client = Client(apiToken)
+    client = TrackerClient(apiToken)
 
-    features = client.getPointedFeatures(projectId)
+    features = client.getDoneFeatures(projectId)
 
     for storyId, estimate in features:
-        stateChanges = client.getStateChanges(projectId, storyId)
-        duration = hoursWorked(stateChanges)
+        history = client.getHistory(projectId, storyId)
+        duration = Clocker.hoursWorked(history)
         print storyId, estimate, duration
