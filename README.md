@@ -5,7 +5,7 @@
 
 1. Get [your Tracker API token](https://www.pivotaltracker.com/profile)
 
-2. Get a project ID, i.e. `https://www.pivotaltracker.com/n/projects/NUMBER`
+2. Get a project ID, the number at the end of your project page URL
 
 3. Install dependencies
   ```bash
