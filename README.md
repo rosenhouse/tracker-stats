@@ -12,7 +12,18 @@
   pip install --upgrade pytz requests
   ```
 
-4. Run it:
-  ```bash
-  ./stats.py $API_TOKEN $PROJECT_ID
+4. Run it
+  ```
+$ ./stats.py -h
+usage: stats.py [-h] [--timezone TIMEZONE] token project
+
+collect some stats for a Tracker Project
+
+positional arguments:
+  token                API token for Pivotal Tracker
+  project              Project ID to collect stats on
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --timezone TIMEZONE  Timezone, e.g. US/Pacific
   ```
