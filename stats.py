@@ -13,7 +13,9 @@ lunchStart = datetime.time(hour=12, minute=30)
 lunchEnd = datetime.time(hour=13, minute=30)
 workEnd = datetime.time(hour=18)
 
+
 class Clocker:
+
     '''
     Count the hours
     '''
@@ -65,6 +67,7 @@ class Clocker:
 
 
 class TrackerClient:
+
     '''
     An API client for Pivotal Tracker
     '''
@@ -75,32 +78,43 @@ class TrackerClient:
         self.baseUrl = "https://www.pivotaltracker.com/services/v5"
 
     def _get_json(self, route, queryParams=None):
-        return self.session.get(self.baseUrl + route, params=queryParams).json()
+        return self.session.get(
+            self.baseUrl +
+            route,
+            params=queryParams).json()
 
     def get_done_features(self, projectId):
         '''
         Return all completed features and their estimates from the last 6 months
           (Tracker API only exposes activity that far back)
         '''
-        min_date = (datetime.datetime.now()-datetime.timedelta(days=180)).strftime("%m/%d/%Y")
+        min_date = (
+            datetime.datetime.now() -
+            datetime.timedelta(
+                days=180)).strftime("%m/%d/%Y")
         features = self._get_json(
-                "/projects/%d/stories" % projectId,
-                { 'filter': 'state:accepted type:Feature includedone:true created_since:"%s"' % min_date })
-        return [ (f['id'], f['estimate']) for f in features ]
+            "/projects/%d/stories" %
+            projectId, {
+                'filter': 'state:accepted type:Feature includedone:true created_since:"%s"' %
+                min_date})
+        return [(f['id'], f['estimate']) for f in features]
 
     def get_history(self, projectId, storyId):
         '''
         Return a condensed history of a story as (date, state) pairs
         where state is { started, finished, delivered, accepted }
         '''
-        activity = self._get_json("/projects/%d/stories/%d/activity" % (projectId, storyId))
+        activity = self._get_json(
+            "/projects/%d/stories/%d/activity" %
+            (projectId, storyId))
         changes = [
             (a['occurred_at'], c['new_values']['current_state'])
-                for a in activity
-                for c in a['changes']
-                if ('new_values' in c) and ('current_state' in c['new_values'])
-            ]
-        return sorted([ (TrackerClient._parse_timestamp(date), state) for date,state in changes ])
+            for a in activity
+            for c in a['changes']
+            if ('new_values' in c) and ('current_state' in c['new_values'])
+        ]
+        return sorted([(TrackerClient._parse_timestamp(date), state)
+                       for date, state in changes])
 
     @staticmethod
     def _parse_timestamp(utcTime, fmt="%Y-%m-%dT%H:%M:%SZ"):
@@ -108,9 +122,13 @@ class TrackerClient:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='collect some stats for a Tracker Project')
+    parser = argparse.ArgumentParser(
+        description='collect some stats for a Tracker Project')
     parser.add_argument('token', help='API token for Pivotal Tracker')
-    parser.add_argument('project', type=int, help='Project ID to collect stats on')
+    parser.add_argument(
+        'project',
+        type=int,
+        help='Project ID to collect stats on')
     args = parser.parse_args()
 
     client = TrackerClient(args.token)
