@@ -54,11 +54,11 @@ class Clocker:
         '''
         duration = datetime.timedelta(0)
         last_start = None
-        for newTime, newState in history:
-            if newState == 'started':
-                last_start = newTime
+        for new_time, new_state in history:
+            if new_state == 'started':
+                last_start = new_time
             elif last_start is not None:
-                duration += self.work_time_between(last_start, newTime)
+                duration += self.work_time_between(last_start, new_time)
                 last_start = None
         return duration.total_seconds() / (60 * 60)
 
@@ -72,12 +72,10 @@ class TrackerClient:
     def __init__(self, apiToken):
         self.session = requests.Session()
         self.session.headers.update({"X-TrackerToken": apiToken})
-        self.base_url = "https://www.pivotaltracker.com/services/v5"
 
     def _get_json(self, route, queryParams=None):
         return self.session.get(
-            self.base_url +
-            route,
+            "https://www.pivotaltracker.com/services/v5" + route,
             params=queryParams).json()
 
     def get_done_features(self, project_id):
@@ -120,7 +118,7 @@ class TrackerClient:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description='collect some stats for a Tracker Project')
+        description='compare hours worked to points estimated')
     parser.add_argument('token', help='API token for Pivotal Tracker')
     parser.add_argument(
         'project',
