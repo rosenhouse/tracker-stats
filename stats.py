@@ -2,6 +2,7 @@
 
 import os
 import datetime
+import argparse
 
 import requests
 import pytz
@@ -107,14 +108,16 @@ class TrackerClient:
 
 
 if __name__ == "__main__":
-    apiToken = os.environ['TRACKER_API_TOKEN']
-    projectId = int(os.environ['PROJECT_ID'])
+    parser = argparse.ArgumentParser(description='collect some stats for a Tracker Project')
+    parser.add_argument('token', help='API token for Pivotal Tracker')
+    parser.add_argument('project', type=int, help='Project ID to collect stats on')
+    args = parser.parse_args()
 
-    client = TrackerClient(apiToken)
+    client = TrackerClient(args.token)
 
-    features = client.getDoneFeatures(projectId)
+    features = client.getDoneFeatures(args.project)
 
     for storyId, estimate in features:
-        history = client.getHistory(projectId, storyId)
+        history = client.getHistory(args.project, storyId)
         duration = Clocker.hoursWorked(history)
         print "%d\t%d\t%1.2f" % (storyId, estimate, duration)
