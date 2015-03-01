@@ -69,11 +69,13 @@ class TrackerClient:
 
     def getDoneFeatures(self, projectId):
         '''
-        Return all completed features and their estimates for a project
+        Return all completed features and their estimates from the last 6 months
+          (Tracker API only exposes activity that far back)
         '''
+        min_date = (datetime.datetime.now()-datetime.timedelta(days=180)).strftime("%m/%d/%Y")
         features = self._getJSON(
                 "/projects/%d/stories" % projectId,
-                { "filter": "state:accepted type:Feature includedone:true" })
+                { 'filter': 'state:accepted type:Feature includedone:true created_since:"%s"' % min_date })
         return [ (f['id'], f['estimate']) for f in features ]
 
     def getHistory(self, projectId, storyId):
