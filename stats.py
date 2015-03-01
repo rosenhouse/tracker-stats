@@ -16,23 +16,22 @@ class Clocker:
 
     def __init__(self, timezone):
         self.timezone = pytz.timezone(timezone)
-        self.workStart = datetime.time(hour=9, minute=15)
-        self.lunchStart = datetime.time(hour=12, minute=30)
-        self.lunchEnd = datetime.time(hour=13, minute=30)
-        self.workEnd = datetime.time(hour=18)
+        self.work_start = datetime.time(hour=9, minute=15)
+        self.lunch_start = datetime.time(hour=12, minute=30)
+        self.lunch_end = datetime.time(hour=13, minute=30)
+        self.work_end = datetime.time(hour=18)
 
     def is_during_work_day(self, utc_time):
         '''
         Crude guess at whether a given time was during work hours
         '''
         local = utc_time.astimezone(self.timezone)
-        weekday = local.weekday()
         if local.isoweekday() >= 6:  # sat or sunday
             return False
         t = local.time()
-        if t < self.workStart or t > self.workEnd:
+        if t < self.work_start or t > self.work_end:
             return False
-        if t > self.lunchStart and t < self.lunchEnd:
+        if t > self.lunch_start and t < self.lunch_end:
             return False
         return True
 
@@ -54,13 +53,13 @@ class Clocker:
         *** This is probably a gross over-estimate.  But what else can we do?  ***
         '''
         duration = datetime.timedelta(0)
-        timeOfLastStart = None
+        last_start = None
         for newTime, newState in history:
             if newState == 'started':
-                timeOfLastStart = newTime
-            elif timeOfLastStart is not None:
-                duration += self.work_time_between(timeOfLastStart, newTime)
-                timeOfLastStart = None
+                last_start = newTime
+            elif last_start is not None:
+                duration += self.work_time_between(last_start, newTime)
+                last_start = None
         return duration.total_seconds() / (60 * 60)
 
 
@@ -73,15 +72,15 @@ class TrackerClient:
     def __init__(self, apiToken):
         self.session = requests.Session()
         self.session.headers.update({"X-TrackerToken": apiToken})
-        self.baseUrl = "https://www.pivotaltracker.com/services/v5"
+        self.base_url = "https://www.pivotaltracker.com/services/v5"
 
     def _get_json(self, route, queryParams=None):
         return self.session.get(
-            self.baseUrl +
+            self.base_url +
             route,
             params=queryParams).json()
 
-    def get_done_features(self, projectId):
+    def get_done_features(self, project_id):
         '''
         Return all completed features and their estimates from the last 6 months
           (Tracker API only exposes activity that far back)
@@ -92,19 +91,19 @@ class TrackerClient:
                 days=180)).strftime("%m/%d/%Y")
         features = self._get_json(
             "/projects/%d/stories" %
-            projectId, {
+            project_id, {
                 'filter': 'state:accepted type:Feature includedone:true created_since:"%s"' %
                 min_date})
         return [(f['id'], f['estimate']) for f in features]
 
-    def get_history(self, projectId, storyId):
+    def get_history(self, project_id, story_id):
         '''
         Return a condensed history of a story as (date, state) pairs
         where state is { started, finished, delivered, accepted }
         '''
         activity = self._get_json(
             "/projects/%d/stories/%d/activity" %
-            (projectId, storyId))
+            (project_id, story_id))
         changes = [
             (a['occurred_at'], c['new_values']['current_state'])
             for a in activity
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     features = client.get_done_features(args.project)
 
     print "%s\t%s\t%s" % ('story_id', 'estimate', 'duration')
-    for storyId, estimate in features:
-        history = client.get_history(args.project, storyId)
+    for story_id, estimate in features:
+        history = client.get_history(args.project, story_id)
         duration = clocker.hours_worked(history)
-        print "%d\t%d\t%1.2f" % (storyId, estimate, duration)
+        print "%d\t%d\t%1.2f" % (story_id, estimate, duration)
