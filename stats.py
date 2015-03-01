@@ -7,12 +7,6 @@ import argparse
 import requests
 import pytz
 
-pacific = pytz.timezone('US/Pacific')
-workStart = datetime.time(hour=9, minute=15)
-lunchStart = datetime.time(hour=12, minute=30)
-lunchEnd = datetime.time(hour=13, minute=30)
-workEnd = datetime.time(hour=18)
-
 
 class Clocker:
 
@@ -20,37 +14,41 @@ class Clocker:
     Count the hours
     '''
 
-    @staticmethod
-    def is_during_work_day(utc_time):
+    def __init__(self, timezone):
+        self.timezone = pytz.timezone(timezone)
+        self.workStart = datetime.time(hour=9, minute=15)
+        self.lunchStart = datetime.time(hour=12, minute=30)
+        self.lunchEnd = datetime.time(hour=13, minute=30)
+        self.workEnd = datetime.time(hour=18)
+
+    def is_during_work_day(self, utc_time):
         '''
         Crude guess at whether a given time was during work hours
         '''
-        local = utc_time.astimezone(pacific)
+        local = utc_time.astimezone(self.timezone)
         weekday = local.weekday()
         if local.isoweekday() >= 6:  # sat or sunday
             return False
         t = local.time()
-        if t < workStart or t > workEnd:
+        if t < self.workStart or t > self.workEnd:
             return False
-        if t > lunchStart and t < lunchEnd:
+        if t > self.lunchStart and t < self.lunchEnd:
             return False
         return True
 
-    @staticmethod
-    def work_time_between(start, end):
+    def work_time_between(self, start, end):
         '''
         How much work time (M-F, 9-6) elapsed between the start time and end time
         '''
         duration = datetime.timedelta(0)
         resolution = datetime.timedelta(minutes=10)
         while start < end:
-            if Clocker.is_during_work_day(start):
+            if self.is_during_work_day(start):
                 duration += resolution
             start += resolution
         return duration
 
-    @staticmethod
-    def hours_worked(history):
+    def hours_worked(self, history):
         '''
         How many hours were spent on a story, given it's history of state changes
         *** This is probably a gross over-estimate.  But what else can we do?  ***
@@ -61,7 +59,7 @@ class Clocker:
             if newState == 'started':
                 timeOfLastStart = newTime
             elif timeOfLastStart is not None:
-                duration += Clocker.work_time_between(timeOfLastStart, newTime)
+                duration += self.work_time_between(timeOfLastStart, newTime)
                 timeOfLastStart = None
         return duration.total_seconds() / (60 * 60)
 
@@ -129,8 +127,13 @@ if __name__ == "__main__":
         'project',
         type=int,
         help='Project ID to collect stats on')
+    parser.add_argument(
+        '--timezone',
+        default='US/Pacific',
+        help='Timezone, e.g. US/Pacific')
     args = parser.parse_args()
 
+    clocker = Clocker(args.timezone)
     client = TrackerClient(args.token)
 
     features = client.get_done_features(args.project)
@@ -138,5 +141,5 @@ if __name__ == "__main__":
     print "%s\t%s\t%s" % ('story_id', 'estimate', 'duration')
     for storyId, estimate in features:
         history = client.get_history(args.project, storyId)
-        duration = Clocker.hours_worked(history)
+        duration = clocker.hours_worked(history)
         print "%d\t%d\t%1.2f" % (storyId, estimate, duration)
