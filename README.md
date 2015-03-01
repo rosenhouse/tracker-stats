@@ -9,7 +9,7 @@
 
 3. Install dependencies
   ```bash
-  pip install --upgrade pytz requests
+  pip install pytz requests
   ```
 
 4. Run it
