@@ -6,7 +6,11 @@ import datetime
 import requests
 import pytz
 
-pacific = pytz.timezone('US/Eastern')
+pacific = pytz.timezone('US/Pacific')
+workStart = datetime.time(hour=9, minute=15)
+lunchStart = datetime.time(hour=12, minute=30)
+lunchEnd = datetime.time(hour=13, minute=30)
+workEnd = datetime.time(hour=18)
 
 class Clocker:
     '''
@@ -20,9 +24,14 @@ class Clocker:
         '''
         local = time.astimezone(pacific)
         weekday = local.weekday()
-        if local.isoweekday() >= 6: # sat or sunday
+        if local.isoweekday() >= 6:  # sat or sunday
             return False
-        return local.time().hour >= 9 and local.time().hour <= 18
+        t = local.time()
+        if t < workStart or t > workEnd:
+            return False
+        if t > lunchStart and t < lunchEnd:
+            return False
+        return True
 
     @staticmethod
     def workTimeBetween(start, end):
