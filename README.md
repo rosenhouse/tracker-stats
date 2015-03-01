@@ -11,14 +11,8 @@
   ```bash
   pip install --upgrade pytz requests
   ```
-  
-4. Set env vars
-  ```bash
-  export TRACKER_API_TOKEN=0123456789abcdef
-  export PROJECT_ID=0123456
-  ```
 
-5. Run it:
+4. Run it:
   ```bash
-  ./stats.py
+  ./stats.py $API_TOKEN $PROJECT_ID
   ```
