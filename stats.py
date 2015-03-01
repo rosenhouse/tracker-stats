@@ -19,11 +19,11 @@ class Clocker:
     '''
 
     @staticmethod
-    def isDuringWorkDay(time):
+    def is_during_work_day(utc_time):
         '''
         Crude guess at whether a given time was during work hours
         '''
-        local = time.astimezone(pacific)
+        local = utc_time.astimezone(pacific)
         weekday = local.weekday()
         if local.isoweekday() >= 6:  # sat or sunday
             return False
@@ -35,23 +35,23 @@ class Clocker:
         return True
 
     @staticmethod
-    def workTimeBetween(start, end):
+    def work_time_between(start, end):
         '''
-        How many normal work hours (M-F, 9-6) are between the start and end time
+        How much work time (M-F, 9-6) elapsed between the start time and end time
         '''
         duration = datetime.timedelta(0)
         resolution = datetime.timedelta(minutes=10)
         while start < end:
-            if Clocker.isDuringWorkDay(start):
+            if Clocker.is_during_work_day(start):
                 duration += resolution
             start += resolution
         return duration
 
     @staticmethod
-    def hoursWorked(history):
+    def hours_worked(history):
         '''
         How many hours were spent on a story, given it's history of state changes
-        *** This is often a gross over-estimate.  But what else can we do?  ***
+        *** This is probably a gross over-estimate.  But what else can we do?  ***
         '''
         duration = datetime.timedelta(0)
         timeOfLastStart = None
@@ -59,7 +59,7 @@ class Clocker:
             if newState == 'started':
                 timeOfLastStart = newTime
             elif timeOfLastStart is not None:
-                duration += Clocker.workTimeBetween(timeOfLastStart, newTime)
+                duration += Clocker.work_time_between(timeOfLastStart, newTime)
                 timeOfLastStart = None
         return duration.total_seconds() / (60 * 60)
 
@@ -74,26 +74,26 @@ class TrackerClient:
         self.session.headers.update({"X-TrackerToken": apiToken})
         self.baseUrl = "https://www.pivotaltracker.com/services/v5"
 
-    def _getJSON(self, route, queryParams=None):
+    def _get_json(self, route, queryParams=None):
         return self.session.get(self.baseUrl + route, params=queryParams).json()
 
-    def getDoneFeatures(self, projectId):
+    def get_done_features(self, projectId):
         '''
         Return all completed features and their estimates from the last 6 months
           (Tracker API only exposes activity that far back)
         '''
         min_date = (datetime.datetime.now()-datetime.timedelta(days=180)).strftime("%m/%d/%Y")
-        features = self._getJSON(
+        features = self._get_json(
                 "/projects/%d/stories" % projectId,
                 { 'filter': 'state:accepted type:Feature includedone:true created_since:"%s"' % min_date })
         return [ (f['id'], f['estimate']) for f in features ]
 
-    def getHistory(self, projectId, storyId):
+    def get_history(self, projectId, storyId):
         '''
         Return a condensed history of a story as (date, state) pairs
         where state is { started, finished, delivered, accepted }
         '''
-        activity = self._getJSON("/projects/%d/stories/%d/activity" % (projectId, storyId))
+        activity = self._get_json("/projects/%d/stories/%d/activity" % (projectId, storyId))
         changes = [
             (a['occurred_at'], c['new_values']['current_state'])
                 for a in activity
@@ -115,9 +115,10 @@ if __name__ == "__main__":
 
     client = TrackerClient(args.token)
 
-    features = client.getDoneFeatures(args.project)
+    features = client.get_done_features(args.project)
 
+    print "%s\t%s\t%s" % ('story_id', 'estimate', 'duration')
     for storyId, estimate in features:
-        history = client.getHistory(args.project, storyId)
-        duration = Clocker.hoursWorked(history)
+        history = client.get_history(args.project, storyId)
+        duration = Clocker.hours_worked(history)
         print "%d\t%d\t%1.2f" % (storyId, estimate, duration)
