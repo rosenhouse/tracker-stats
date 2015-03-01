@@ -108,4 +108,4 @@ if __name__ == "__main__":
     for storyId, estimate in features:
         history = client.getHistory(projectId, storyId)
         duration = Clocker.hoursWorked(history)
-        print storyId, estimate, duration
+        print "%d\t%d\t%1.2f" % (storyId, estimate, duration)
